@@ -1,0 +1,178 @@
+(footprint "USB_A_Connector_PCB"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "USB A Connector")
+	(tags "USB A Connector")
+	(property "Reference" "REF**"
+		(at 0 -1 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "19f2853f-6395-4296-9a04-108801993b68")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "USB_A_Connector_PCB"
+		(at 0 1 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "b3743960-375d-46bd-94e8-17ae5bb09635")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "f4a46ab1-726f-479d-bd9f-694b5fe00ec7")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "USB A Connector"
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "a61aab5f-f5e7-417c-8474-ca134a9bbf3a")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr smd exclude_from_bom)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -4.7 1)
+		(end -4.7 9)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "Edge.Cuts")
+		(uuid "303a9a7c-870f-44b2-ac9a-73734989a199")
+	)
+	(fp_line
+		(start -3.7 0)
+		(end -4.7 1)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "Edge.Cuts")
+		(uuid "d695e48d-6a5b-4ae9-b84b-b7197075bf65")
+	)
+	(fp_line
+		(start 3.7 0)
+		(end -3.7 0)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "Edge.Cuts")
+		(uuid "76f015b8-663d-4fec-b399-d9de6d51ca8d")
+	)
+	(fp_line
+		(start 4.7 1)
+		(end 3.7 0)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "Edge.Cuts")
+		(uuid "5ebc35a4-fc78-4746-91f7-cc4791e6290c")
+	)
+	(fp_line
+		(start 4.7 9)
+		(end 4.7 1)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "Edge.Cuts")
+		(uuid "a4d7af4d-121d-4a59-801b-a0fa1b6b67e7")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 2.5 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "e2233a88-5120-443c-bac6-08ddc200f56f")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" smd custom
+		(at -3.25 5.15)
+		(size 2.25 7.5)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy -1.125028 -3.650641) (xy 1.125 -3.65) (xy 1.124657 -4.251198) (xy -0.625 -4.25) (xy -1.125 -3.75)
+				)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "eea13e12-6893-4b6b-ac07-bac3aed9300a")
+	)
+	(pad "2" smd rect
+		(at -1 5.15)
+		(size 1.75 7.5)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(uuid "293c4daf-5f94-4a9b-b8bb-aa12916c2267")
+	)
+	(pad "3" smd rect
+		(at 1 5.15)
+		(size 1.75 7.5)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(uuid "2642cfa6-6e9d-442a-9814-de0723b96567")
+	)
+	(pad "4" smd custom
+		(at 3.25 5.15)
+		(size 2.25 7.5)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy -1.125241 -4.249154) (xy 0.625 -4.25) (xy 1.125 -3.75) (xy 1.124951 -3.64892) (xy -1.125 -3.65)
+				)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "7305a088-8e05-4b8a-bf5c-6ca4fcd97e14")
+	)
+	(embedded_fonts no)
+)
