@@ -517,7 +517,7 @@
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "priority": 2147483647,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
-        "track_width": 0.1,
+        "track_width": 0.2,
         "tuning_profile": "",
         "via_diameter": 0.6,
         "via_drill": 0.3,
@@ -689,7 +689,7 @@
         "uuid": "10cfdf72-a298-47ba-a6cb-e1e1a0fc9186"
       }
     ],
-    "used_designators": "U3",
+    "used_designators": "C3,U3",
     "variants": []
   },
   "sheets": [
