@@ -3,7 +3,7 @@
 	(generator "pcbnew")
 	(generator_version "10.0")
 	(general
-		(thickness 1.6)
+		(thickness 0.6)
 		(legacy_teardrops no)
 	)
 	(paper "A4")
@@ -51,7 +51,7 @@
 			)
 			(layer "dielectric 1"
 				(type "core")
-				(thickness 1.51)
+				(thickness 0.51)
 				(material "FR4")
 				(epsilon_r 4.5)
 				(loss_tangent 0.02)
@@ -3633,12 +3633,6 @@
 		(path "/c18bd41f-cfd8-4754-ab32-383c08c8de77")
 		(sheetname "/")
 		(sheetfile "comu.kicad_sch")
-		(units
-			(unit
-				(name "A")
-				(pins "4" "1" "3" "2")
-			)
-		)
 		(attr smd exclude_from_bom)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
@@ -3704,10 +3698,10 @@
 				(justify mirror)
 			)
 		)
-		(pad "1" smd custom
+		(pad "1" connect custom
 			(at -3.25 -5.15)
 			(size 2.25 7.5)
-			(layers "B.Cu" "B.Mask" "B.Paste")
+			(layers "B.Cu" "B.Mask")
 			(net "VBUS")
 			(pinfunction "VBUS_1")
 			(pintype "power_in")
@@ -3727,30 +3721,30 @@
 			)
 			(uuid "7ac0b920-caba-4d7b-8672-8447f003c128")
 		)
-		(pad "2" smd rect
+		(pad "2" connect rect
 			(at -1 -5.15)
 			(size 1.75 7.5)
-			(layers "B.Cu" "B.Mask" "B.Paste")
+			(layers "B.Cu" "B.Mask")
 			(net "/USB_D-")
 			(pinfunction "D-_2")
 			(pintype "bidirectional")
 			(thermal_bridge_angle 45)
 			(uuid "56eb89d5-c1f4-4fa5-b243-cc09d3e90294")
 		)
-		(pad "3" smd rect
+		(pad "3" connect rect
 			(at 1 -5.15)
 			(size 1.75 7.5)
-			(layers "B.Cu" "B.Mask" "B.Paste")
+			(layers "B.Cu" "B.Mask")
 			(net "/USB_D+")
 			(pinfunction "D+_3")
 			(pintype "bidirectional")
 			(thermal_bridge_angle 45)
 			(uuid "47f5f8b9-9ae6-47cb-a71e-e95146ab1579")
 		)
-		(pad "4" smd custom
+		(pad "4" connect custom
 			(at 3.25 -5.15)
 			(size 2.25 7.5)
-			(layers "B.Cu" "B.Mask" "B.Paste")
+			(layers "B.Cu" "B.Mask")
 			(net "GND")
 			(pinfunction "GND_4")
 			(pintype "power_in")
