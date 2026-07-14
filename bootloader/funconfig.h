@@ -9,7 +9,7 @@
 #define FUNCONF_USE_HSE             1
 
 // Takes up 400B
-// #define FUNCONF_OVERRIDE_STARTUP 0
+#define FUNCONF_OVERRIDE_STARTUP 0
 
 #endif
 

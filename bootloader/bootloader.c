@@ -1,5 +1,5 @@
+#include "bootloader.h"
 #include "ch32fun.h"
-#include "usbd.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -11,6 +11,23 @@
 #define TOUCH_R0 PA8
 #define TOUCH_L0 PA7
 #define TOUCH_L1 PA5
+
+#define ENDPOINTS 3
+
+static inline void SetEPR_Status(const int ep, const uint16_t mask, const uint16_t value) {
+	const uint16_t reg = USBD->EPR[ep];
+	const uint16_t current_stat = reg & mask;
+	// Which bits we need to toggle
+	const uint16_t toggle = current_stat ^ value;
+
+	// Conserve EA, TYPE and KIND (Non-toggle)
+	uint16_t write_val = (reg & (USBD_EPR_EA | USBD_EPR_EP_TYPE_MASK | USBD_EPR_EP_KIND));
+	write_val |= toggle;
+	// Write 1 has no effect for CTR_RX and CTR_TX (0 clears)
+	write_val |= (USBD_EPR_CTR_RX | USBD_EPR_CTR_TX);
+
+	USBD->EPR[ep] = write_val;
+}
 
 int main() {
 	// Setup PLL
@@ -48,14 +65,14 @@ int main() {
 
 	// 64 bytes for each buffer
 	// EP0 has to be RTX
-	USBD_BDT->EP[0].ADDR_TX = USBD_PBA_BASE + 0x00;
-	USBD_BDT->EP[0].COUNT_TX = 0x0; // Configured on the fly
-	USBD_BDT->EP[0].ADDR_RX = USBD_PBA_BASE + 0x00;
-	USBD_BDT->EP[0].COUNT_RX = 0x8400; // 2 blocks of 32 bytes
-	USBD_BDT->EP[1].ADDR_TX = USBD_PBA_BASE + 0x40;
-	USBD_BDT->EP[1].COUNT_TX = 0x0;
-	USBD_BDT->EP[2].ADDR_RX = USBD_PBA_BASE + 0x80;
-	USBD_BDT->EP[2].COUNT_RX = 0x8400;
+	USBD_BDT->EP[0].ADDn_TX = USBD_PMA_BASE + 0x00;
+	USBD_BDT->EP[0].COUNTn_TX = 0x0; // Configured on the fly
+	USBD_BDT->EP[0].ADDn_RX = USBD_PMA_BASE + 0x00;
+	USBD_BDT->EP[0].COUNTn_RX = 0x8400; // 2 blocks of 32 bytes
+	USBD_BDT->EP[1].ADDn_TX = USBD_PMA_BASE + 0x40;
+	USBD_BDT->EP[1].COUNTn_TX = 0x0;
+	USBD_BDT->EP[2].ADDn_RX = USBD_PMA_BASE + 0x80;
+	USBD_BDT->EP[2].COUNTn_RX = 0x8400;
 
 	EXTEN->EXTEN_CTR |= EXTEN_USBD_PU_EN;
 	USBD->CNTR = USBD_CTRM | USBD_RESETM | USBD_SUSPM | USBD_WKUPM;
@@ -70,46 +87,142 @@ int main() {
 
 void USB_LP_CAN1_RX0_IRQHandler(void) __attribute__((interrupt));
 void USB_LP_CAN1_RX0_IRQHandler(void) {
+	// TODO: Set ADDR
+	static uint16_t tx_pending = 0;
+
 	const uint32_t istr = USBD->ISTR;
 
 	// Correct transfer
 	if (istr & USBD_CTR) {
-		int ep = istr & USBD_EP_ID;
-		printf("TR: %x\n", ep);
+		const int ep = istr & USBD_EP_ID;
+		const int epr = USBD->EPR[ep];
+
+		if (epr & USBD_CTR_RX) {
+			// Endpoint 0 - control EP
+			if (ep == 0) {
+				// Setup packet
+				if (epr & USBD_SETUP) {
+					const uint8_t request_type = USBD_EP[0][0];
+					const uint8_t request = USBD_EP[0][1];
+
+					// printf("EP0 SETUP: %d %d\n", request_type, request);
+
+					if (request_type & 0b01100000) {
+						printf("Recieved non-standard USB request!");
+					}
+
+					switch (request) {
+						case USB_GET_STATUS:
+
+							/*
+										    USBD->EPR[ep] = (USBD->EPR[ep] &
+												     (USBD_EA |
+							   USBD_EPKIND | USBD_EPTYPE)) | USBD_CTR_RX | USBD_CTR_TX |
+							   USBD_DTOG_TX; printf("Returning STATUS with DATA%d\n",
+											   ((USBD->EPR[0] &
+							   USBD_DTOG_TX) != 0));
+							       */
+							// Non remote wakeup and non self powered
+							// Other recipients also need to return 0
+							USBD_EP[0][0] = 0x00;
+							USBD_EP[0][1] = 0x00;
+							USBD_BDT->EP[0].COUNTn_TX = 2;
+							SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_VALID);
+							break;
+						default:
+							printf("EP0 SETUP: %d %d\n", request_type, request);
+					}
+				} else {
+					// OUT RX packet
+					const uint16_t len = USBD_BDT->EP[0].COUNTn_RX & 0x3FF;
+
+					// printf("EP0 OUT: %d (len)\n", len);
+
+					SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
+				}
+			} else {
+				// TODO: Test if setup
+				printf("EPn OUT\n");
+			}
+
+			// Clear RX (Toggle, 1 conserves bit)
+			USBD->EPR[ep] = (USBD->EPR[ep] & (USBD_EA | USBD_EPKIND | USBD_EPTYPE)) | USBD_CTR_TX;
+		}
+
+		if (epr & USBD_CTR_TX) {
+			if (ep == 0) {
+				// printf("EP0 IN\n");
+
+				if (tx_pending > 0) {
+					// TODO: More data to send?
+					tx_pending -= USBD_BDT->EP[0].COUNTn_TX;
+					printf("ERROR! Pending TODO\n");
+				} else {
+					// Nothing more to transfer
+					SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
+				}
+			} else {
+				// TODO: Other EPs
+				printf("EPn TX\n");
+			}
+
+			// Clear TX (Toggle)
+			USBD->EPR[ep] = (USBD->EPR[ep] & (USBD_EA | USBD_EPKIND | USBD_EPTYPE)) | USBD_CTR_RX;
+		}
+
+		USBD->ISTR = ~USBD_CTR;
 	}
 
 	if (istr & USBD_RESET) {
-		printf("USB reset\n");
-		USBD->ISTR = ~USBD_PMAOVR;
+		// printf("USB reset\n");
+
+		USBD->ISTR = ~USBD_RESET;
+		USBD->BTABLE = 0;
+
+		for (int i = 0; i < ENDPOINTS; ++i) {
+			USBD->EPR[i] = i;
+		}
+
+		// TODO: Write directly to save bytes?
+		SetEPR_Status(0, USBD_EPR_EP_TYPE_MASK, USBD_EPR_EP_TYPE_CTRL);
+		// ACK on RX
+		SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
+		// NAK on TX
+		// TODO: Stall?
+		SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
+
+		// We already cleared all write-once bits so EP_KIND is 0
+		// TODO: Clear DOTG? Should be 0
+
+		// TODO: Other EPs
+
+		// Enable USB function
+		USBD->DADDR = USBD_EF;
 	}
 
 	if (istr & USBD_PMAOVR) {
-		printf("ERROR! USB overflow\n");
 		USBD->ISTR = ~USBD_PMAOVR;
 	}
 
 	if (istr & USBD_WKUP) {
-		printf("USB waky waky\n");
 		USBD->ISTR = ~USBD_SUSP;
 	}
 
 	if (istr & USBD_SUSP) {
-		// printf("USB we go eep\n");
 		USBD->ISTR = ~USBD_WKUP;
 	}
 
 	if (istr & USBD_ESOF) {
-		// printf("USB ESOF\n");
 		USBD->ISTR = ~USBD_ESOF;
 	}
 
 	if (istr & USBD_SOF) {
-		printf("USB SOF\n");
 		USBD->ISTR = ~USBD_SOF;
 	}
 
 	if (istr & USBD_ERR) {
 		printf("ERROR! USB error\n");
+
 		USBD->ISTR = ~USBD_ERR;
 	}
 }
