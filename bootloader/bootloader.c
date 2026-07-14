@@ -33,6 +33,7 @@ int main() {
 	// Setup PLL
 	SystemInit();
 	funGpioInitAll();
+	printf("Hello world!\n");
 
 	// Setup LED
 	GPIOA->CFGHR &= ~(0xf << (4 * 7));
@@ -100,43 +101,45 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 		if (epr & USBD_CTR_RX) {
 			// Endpoint 0 - control EP
 			if (ep == 0) {
+
 				// Setup packet
 				if (epr & USBD_SETUP) {
-					const uint8_t request_type = USBD_EP[0][0];
-					const uint8_t request = USBD_EP[0][1];
+					// Memory in USBD is stored in ranks of 16 bits (even though they can store 32
+					// bits)???
+					const uint8_t request_type = USBD_EP[0][0] & 0xFF;
+					const uint8_t request = USBD_EP[0][0] >> 8;
+					const uint16_t value = USBD_EP[0][1];
+					const uint16_t index = USBD_EP[0][2];
+					const uint16_t length = USBD_EP[0][3];
 
-					// printf("EP0 SETUP: %d %d\n", request_type, request);
+					printf("EP0 SETUP: %d %d %d %d %d\n", request_type, request, value, index,
+					       length);
 
 					if (request_type & 0b01100000) {
 						printf("Recieved non-standard USB request!");
 					}
 
+                    // TODO: SET CONFIG AND SET ADDR
 					switch (request) {
 						case USB_GET_STATUS:
-
-							/*
-										    USBD->EPR[ep] = (USBD->EPR[ep] &
-												     (USBD_EA |
-							   USBD_EPKIND | USBD_EPTYPE)) | USBD_CTR_RX | USBD_CTR_TX |
-							   USBD_DTOG_TX; printf("Returning STATUS with DATA%d\n",
-											   ((USBD->EPR[0] &
-							   USBD_DTOG_TX) != 0));
-							       */
 							// Non remote wakeup and non self powered
 							// Other recipients also need to return 0
 							USBD_EP[0][0] = 0x00;
 							USBD_EP[0][1] = 0x00;
 							USBD_BDT->EP[0].COUNTn_TX = 2;
 							SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_VALID);
+						case USB_GET_DESCRIPTOR:
+
 							break;
 						default:
 							printf("EP0 SETUP: %d %d\n", request_type, request);
+							break;
 					}
 				} else {
 					// OUT RX packet
 					const uint16_t len = USBD_BDT->EP[0].COUNTn_RX & 0x3FF;
 
-					// printf("EP0 OUT: %d (len)\n", len);
+					printf("EP0 OUT: %d (len)\n", len);
 
 					SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
 				}
@@ -151,7 +154,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 
 		if (epr & USBD_CTR_TX) {
 			if (ep == 0) {
-				// printf("EP0 IN\n");
+				printf("EP0 IN\n");
 
 				if (tx_pending > 0) {
 					// TODO: More data to send?
@@ -174,7 +177,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 	}
 
 	if (istr & USBD_RESET) {
-		// printf("USB reset\n");
+		printf("USB reset\n");
 
 		USBD->ISTR = ~USBD_RESET;
 		USBD->BTABLE = 0;

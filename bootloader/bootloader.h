@@ -16,7 +16,7 @@ typedef struct __attribute__((__packed__)) {
 
 // Packet buffer (0x400 - 0x80 = 0x380) left
 #define USBD_PMA_BASE 0x80 // Offset from USBD_BDT_BASE
-#define USBD_EP ((uint32_t (*)[32])(CAN_USBD_SHARED_BASE + USBD_PMA_BASE * 2))
+#define USBD_EP ((volatile uint32_t (*)[32])(CAN_USBD_SHARED_BASE + USBD_PMA_BASE * 2))
 
 #define USBD_EPR_CTR_RX 0x8000
 #define USBD_EPR_DTOG_RX 0x4000
