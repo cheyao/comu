@@ -42,6 +42,20 @@ typedef struct __attribute__((__packed__)) {
 #define USBD_EPR_EA 0x000F
 
 #define USB_GET_STATUS 0x00
+#define USB_SET_ADDRESS 0x05
 #define USB_GET_DESCRIPTOR 0x06
+#define USB_GET_CONFIG 0x08
+#define USB_SET_CONFIG 0x09
+#define USB_GET_INTERFACE 0x0A
+
+#define USB_CLEAR_FEATURE 0x01
+#define USB_SET_FEATURE 0x03
+#define USB_SET_DESCRIPTOR 0x07
+#define USB_SET_INTERFACE 0x0B
+// USB_SYNCH_FRAME??? 0x0C
+
+#define USBD_DEVICE_DESCRIPTOR 0x01
+#define USBD_CONFIG_DESCRIPTOR 0x02
+#define USBD_STRING_DESCRIPTOR 0x03
 
 #endif

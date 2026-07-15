@@ -46,13 +46,13 @@ static const uint8_t config_descriptor[] = {
 	// Config
 	0x09, // bLength
 	0x02, // bDescriptorType (Configuration)
-	0x43,
+	0x2C,
 	0x00, // wTotalLength 67 TODO: Fix
 	0x02, // bNumInterfaces 2
 	0x01, // bConfigurationValue
 	0x00, // iConfiguration (String Index)
 	0x80, // bmAttributes
-	0x30, // bMaxPower 100mA
+	0x32, // bMaxPower 100mA
 
 	// Interface
 	0x09, // bLength
@@ -123,22 +123,11 @@ const static struct usb_string_descriptor_struct string2
 const static struct usb_string_descriptor_struct string3
 	__attribute__((section(".rodata"))) = {sizeof(FUSB_STR_SERIAL), 3, FUSB_STR_SERIAL};
 
-// This table defines which descriptor data is sent for each specific
-// request from the host (in wValue and wIndex).
-const static struct descriptor_list_struct {
-	uint32_t lIndexValue; // (uint16_t)Index of a descriptor in config or Language ID for string descriptors |
-			      // (uint8_t)Descriptor type | (uint8_t)Type of string descriptor
-	const uint8_t* addr;
-	uint8_t length;
-} descriptor_list[] = {
-	{0x00000100, device_descriptor, sizeof(device_descriptor)},
-	{0x00000200, config_descriptor, sizeof(config_descriptor)},
-	// {0x00002100, config_descriptor + 18, 9 }, // Not sure why, this seems to be useful for Windows + Android.
-
-	{0x00000300, (const uint8_t*)&language, 4},
-	{0x04090301, (const uint8_t*)&string1, string1.bLength},
-	{0x04090302, (const uint8_t*)&string2, string2.bLength},
-	{0x04090303, (const uint8_t*)&string3, string3.bLength}};
-#define DESCRIPTOR_LIST_ENTRIES ((sizeof(descriptor_list)) / (sizeof(struct descriptor_list_struct)))
+const static uint8_t* usb_string_descriptors[] = {
+	(const uint8_t*)&language,
+	(const uint8_t*)&string1,
+	(const uint8_t*)&string2,
+	(const uint8_t*)&string3,
+};
 
 #endif
