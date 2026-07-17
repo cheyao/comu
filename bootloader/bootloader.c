@@ -3,7 +3,6 @@
 #include "usb_config.h"
 
 #include <stdio.h>
-#include <string.h>
 
 #define LED_L PA4
 #define LED_R PB11
@@ -15,9 +14,18 @@
 
 #define ENDPOINTS 3
 
+#define DATA_SIZE 6144
+#define SCRATCHPAD_SIZE DATA_SIZE + 128
+
+__attribute__((section(".scratchpad"))) uint8_t scratchpad[SCRATCHPAD_SIZE];
+__attribute__((section(".runwordpad"))) volatile int32_t runwordpad;
+__attribute__((section(".boot_address"))) volatile uint32_t boot_usercode_address;
+
 #define min(a, b) ((a < b) ? a : b)
 
+#define USB_DEBUG
 #ifdef USB_DEBUG
+#include <string.h>
 #define USB_DEBUG_PRINTF(...) printf(__VA_ARGS__)
 #else
 #define USB_DEBUG_PRINTF(...)
@@ -42,6 +50,8 @@ int main() {
 	// Setup PLL
 	SystemInit();
 	funGpioInitAll();
+	printf("\033[2JHello world!\n");
+	runwordpad = 0;
 
 	// Setup LED
 	GPIOA->CFGHR &= ~(0xf << (4 * 7));
@@ -65,7 +75,7 @@ int main() {
 	USBD->CNTR = USBD_FRES; // Suspend & disable all interrupts
 	USBD->CNTR = 0;
 
-	// Delay a tad
+	// Delay a tad (Slightly more optimized)
 	for (volatile int i = 0; i < 1000; i++)
 		;
 
@@ -80,24 +90,44 @@ int main() {
 	USBD_BDT->EP[0].COUNTn_RX = 0x8400; // 2 blocks of 32 bytes
 	USBD_BDT->EP[1].ADDn_TX = USBD_PMA_BASE + 0x40;
 	USBD_BDT->EP[1].COUNTn_TX = 0x0;
-	USBD_BDT->EP[2].ADDn_RX = USBD_PMA_BASE + 0x80;
-	USBD_BDT->EP[2].COUNTn_RX = 0x8400;
 
 	EXTEN->EXTEN_CTR |= EXTEN_USBD_PU_EN;
-	USBD->CNTR = USBD_CTRM | USBD_RESETM | USBD_SUSPM | USBD_WKUPM;
+	USBD->CNTR = USBD_CTRM | USBD_RESETM;
 	USBD->ISTR = 0;
 	NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
 
 	GPIOA->BSHR = (1 << 31);
 
-	while (1)
-		;
+	// Process loop
+	int32_t localpad = (int32_t)(SysTick->CNT);
+	while (1) {
+		if (localpad > 0) {
+			if (--localpad == 0) {
+				typedef void (*setype)(uint32_t*, volatile int32_t*);
+				setype scratchexec = (setype)(scratchpad + 4);
+
+                printf("Exec: %d %ld\n", scratchpad[0], runwordpad);
+				scratchexec((uint32_t*)&scratchpad[0], &runwordpad);
+                printf("Xxec: %d %ld\n", scratchpad[0], runwordpad);
+			}
+		}
+
+		volatile uint32_t commandpad = runwordpad;
+		if (commandpad) {
+			localpad = commandpad - 1;
+			runwordpad = 0;
+		}
+	}
 }
 
 void USB_LP_CAN1_RX0_IRQHandler(void) __attribute__((interrupt));
 void USB_LP_CAN1_RX0_IRQHandler(void) {
-	static uint8_t const* tx_buf = NULL;
+	// Small macro to help reduce size
+	static const uint8_t zeros[] = {0, 0};
+	static const uint8_t* tx_buf = NULL;
 	static uint16_t tx_pending = 0;
+	static uint8_t* rx_buf = NULL;
+	static uint16_t rx_pending = 0;
 	static uint8_t new_addr = 0;
 	static uint8_t usb_config = 0;
 
@@ -108,14 +138,15 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 		const int ep = istr & USBD_EP_ID;
 		const int epr = USBD->EPR[ep];
 
+#ifdef USB_DEBUG
 		if (epr & USBD_CTR_RX && epr & USBD_CTR_TX) {
 			USB_DEBUG_PRINTF("UB! Both RX & TX!");
 		}
+#endif
 
 		if (epr & USBD_CTR_RX) {
 			// Endpoint 0 - control EP
 			if (ep == 0) {
-
 				// Setup packet
 				if (epr & USBD_SETUP) {
 					// Memory in USBD is stored in ranks of 16 bits (even though they can store 32
@@ -126,76 +157,130 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 					// const uint16_t index = USBD_EP[0][2]; (Unused for the moment)
 					const uint16_t length = USBD_EP[0][3];
 
-					USB_DEBUG_PRINTF("EP0 SETUP: %d %d %d %d\n", request_type, request, value,
-							 length);
+					// USB_DEBUG_PRINTF("EP0 SETUP: %d %d %d\n", request, value, length);
 
-					if (request_type & 0b01100000) {
-						USB_DEBUG_PRINTF("Recieved non-standard USB request!\n");
-					}
+					// Request 0b00100001 0x0A = SET IDLE, can be ignored
+					if ((request_type & USBD_REQ_TYP_MASK) == USBD_REQ_TYP_STANDARD) {
+						// Standard setup
+						switch (request) {
+							case USB_GET_STATUS:
+								// Non remote wakeup and non self powered -> 0
+								tx_buf = zeros;
+								tx_pending = 2;
+								break;
+							case USB_SET_ADDRESS:
+								new_addr = value & 0xFF;
+								tx_pending = 0xFFFF;
+								break;
+							case USB_GET_DESCRIPTOR:
+								const uint8_t type = value >> 8;
 
-					switch (request) {
-						case USB_GET_STATUS:
-							// Non remote wakeup and non self powered -> 0
-							USBD_EP[0][0] = 0x00; // 2 bytes
-							USBD_BDT->EP[0].COUNTn_TX = 2;
-							SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_VALID);
-							break;
-						case USB_SET_ADDRESS:
-							new_addr = value & 0xFF;
-							tx_pending = 0xFFFF;
-							break;
-						case USB_GET_DESCRIPTOR:
-							uint8_t type = value >> 8;
+								// 64 bytes TX
+								if (type == USBD_DEVICE_DESCRIPTOR) {
+									tx_buf = device_descriptor;
+									tx_pending = sizeof(device_descriptor);
+								} else if (type == USBD_CONFIG_DESCRIPTOR) {
+									tx_buf = config_descriptor;
+									tx_pending = sizeof(config_descriptor);
+								} else if (type == USBD_HID_DESCRIPTOR) {
+									tx_buf = special_hid_desc;
+									tx_pending = sizeof(special_hid_desc);
+								} else if (type == USBD_STRING_DESCRIPTOR) {
+									// TODO: Language ID with index?
+									tx_buf = usb_string_descriptors[value & 0xFF];
+									tx_pending = tx_buf[0];
 
-							// 64 bytes TX
-							if (type == USBD_DEVICE_DESCRIPTOR) {
-								tx_buf = device_descriptor;
-								tx_pending = min(sizeof(device_descriptor), length);
-							} else if (type == USBD_CONFIG_DESCRIPTOR) {
-								tx_buf = config_descriptor;
-								tx_pending = min(sizeof(config_descriptor), length);
-							} else if (type == USBD_STRING_DESCRIPTOR) {
-								tx_buf = usb_string_descriptors[value & 0xFF];
-								tx_pending = min(tx_buf[0], length);
-
-								// TODO: Language ID with index?
-								// FIXME: Remove when non-debug
-								if ((value & 0xFF) >= sizeof(usb_string_descriptors)) {
-									USB_DEBUG_PRINTF(
-										"ERROR! USB STR BUF OVERFLOW\n");
+#ifdef USB_DEBUG
+									if ((value & 0xFF) >=
+									    sizeof(usb_string_descriptors)) {
+										USB_DEBUG_PRINTF(
+											"ERROR! STR NOTFOUND\n");
+									}
+#endif
 								}
-							}
 
-							break;
-						case USB_GET_CONFIG:
-							tx_buf = &usb_config;
-							tx_pending = 1;
-							break;
-						case USB_SET_CONFIG:
-							usb_config = value & 0xFF;
-							tx_pending = 0xFFFF;
-							break;
-						case USB_GET_INTERFACE:
-							USBD_EP[0][0] = 0x00; // 2 bytes
-							USBD_BDT->EP[0].COUNTn_TX = 1;
-							SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_VALID);
-							break;
-						default:
-							tx_pending = -1;
-							USB_DEBUG_PRINTF("EP0 SETUP: %d %d\n", request_type, request);
-							break;
+								tx_pending = min(tx_pending, length);
+
+								break;
+							case USB_GET_CONFIG:
+								tx_buf = &usb_config;
+								tx_pending = 1;
+								break;
+							case USB_SET_CONFIG:
+								usb_config = value & 0xFF;
+								tx_pending = 0xFFFF;
+								break;
+							case USB_GET_INTERFACE:
+								tx_buf = zeros;
+								tx_pending = 1;
+								break;
+							default:
+								tx_pending = 0xFFFF;
+								USB_DEBUG_PRINTF("EP0 SETUP UNHANDLED: %d\n", request);
+								break;
+						}
+					} else {
+						// Non-standard reqs
+						switch (request) {
+							case HID_SET_REPORT:
+								// Send code to execute?
+								// USB_DEBUG_PRINTF("HID SET REPORT\n");
+
+								rx_pending = min(length, SCRATCHPAD_SIZE);
+								rx_buf = scratchpad;
+								runwordpad = 1;
+
+								SetEPR_Status(0, USBD_EPR_STAT_RX_MASK,
+									      USBD_EPR_STAT_RX_VALID);
+								break;
+							case HID_GET_REPORT:
+								USB_DEBUG_PRINTF("HIDG\n");
+								break;
+							case HID_SET_IDLE:
+								// Ignroe idle requests
+								tx_pending = 0xFFFF;
+								break;
+							default:
+								tx_pending = 0xFFFF;
+								USB_DEBUG_PRINTF("EP0 HID UNHANDLED: %d\n", request);
+								break;
+						}
 					}
 				} else {
 					// OUT RX packet
-					// const uint16_t len = USBD_BDT->EP[0].COUNTn_RX & 0x3FF;
+					const uint16_t len = USBD_BDT->EP[0].COUNTn_RX & 0x3FF;
 
-					// USB_DEBUG_PRINTF("EP0 OUT: %d bytes\n", len);
+					if (len != 0) {
+						if (rx_pending > 0) {
+							// We got a data packet!
+							// Copy data over to scratchpad
+							for (int i = 0; i < len; ++i) {
+								rx_buf[i] =
+									(USBD_EP[0][i / 2] >> ((i & 1) << 3)) & 0xFF;
+							}
+
+							// ACK packet (1 for each data packet)
+							rx_buf += len;
+							rx_pending -= len;
+
+							if (rx_pending == 0) {
+								// Finished transaction, do something
+								uint32_t* last4 = (uint32_t*)(rx_buf - 4);
+								// The code shall be run
+								if (*last4 == 0x1234abcd) {
+									*last4 = 0;
+									runwordpad = 100;
+                                    rx_buf = 0;
+								}
+							}
+						}
+
+						tx_pending = 0xFFFF;
+					}
 
 					// Ignore, we can continue to recieve
 					// (Probably an 0 byte control packet)
 					SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
-
-					// Maybe change this up for error handling?
 				}
 			} else {
 				USB_DEBUG_PRINTF("EPn OUT\n");
@@ -214,21 +299,23 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 		// TX detects if the operation should be continued by checking
 		// if the tx_buf is null
 		// TODO: Other EPs
-		if (ep == 0 && (epr & USBD_CTR_RX || epr & USBD_CTR_TX)) {
+		if (ep == 0 && (epr & (USBD_CTR_RX | USBD_CTR_TX))) {
 			if (tx_pending == 0) {
 				tx_buf = NULL;
 				// Enable recieving data
 				SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
-			} else if (tx_pending == 0xFFFF) {
-				// ACK packet
-				USBD_BDT->EP[0].COUNTn_TX = 0;
-				SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_VALID);
 			} else {
+				// 0xFFFF is special variable to say 0 byte tx
+				if (tx_pending == 0xFFFF) {
+					tx_pending = 0;
+				}
+
 				const uint16_t tx_len = min(tx_pending, 64);
 				for (int i = 0; i < tx_len; i += 2) {
-					USBD_EP[0][i / 2] = *((uint16_t*)(tx_buf + i));
+					USBD_EP[0][i / 2] = *((const uint16_t*)(tx_buf + i));
 				}
 				USBD_BDT->EP[0].COUNTn_TX = tx_len;
+				tx_buf += tx_len;
 				tx_pending -= tx_len;
 				SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_VALID);
 			}
@@ -246,9 +333,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 					USBD->DADDR = 0x80 | new_addr;
 					new_addr = 0;
 				}
-
-				// Mostly handled by freestanding func above
-				// USB_DEBUG_PRINTF("EP0 IN\n");
 			} else {
 				// TODO: Other EPs
 				USB_DEBUG_PRINTF("EPn TX\n");
@@ -289,18 +373,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 
 		// Enable USB function
 		USBD->DADDR = USBD_EF;
-	}
-
-	if (istr & USBD_PMAOVR) {
-		USBD->ISTR = ~USBD_PMAOVR;
-	}
-
-	if (istr & USBD_WKUP) {
-		USBD->ISTR = ~USBD_SUSP;
-	}
-
-	if (istr & USBD_SUSP) {
-		USBD->ISTR = ~USBD_WKUP;
 	}
 
 	if (istr & USBD_ESOF) {

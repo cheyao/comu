@@ -17,7 +17,7 @@
 #define FUSB_USB_REV 0x0007
 #define FUSB_STR_MANUFACTURER u"cheyao"
 #define FUSB_STR_PRODUCT u"USB Bootloader"
-#define FUSB_STR_SERIAL u"007"
+#define FUSB_STR_SERIAL u"BOOT"
 
 // https://beyondlogic.org/usbnutshell/usb5.htm#DeviceDescriptors
 static const uint8_t device_descriptor[] = {
@@ -41,14 +41,58 @@ static const uint8_t device_descriptor[] = {
 	1, // bNumConfigurations - Max number of configurations (if more then 1, you can switch between them)
 };
 
+// clang-format off
+// Copied from https://github.com/cnlohr/ch32fun/blob/master/examples_usb/bootloader/usb_config.h#L54-L92
+// Multiple HID sizes is for performance optimizations (Thanks to @monte-monte for the info)
+static const uint8_t special_hid_desc[] = {
+	HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP ),
+	HID_USAGE      ( 0xff ), // Needed?
+	HID_REPORT_SIZE ( 8 ),
+	HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
+		HID_REPORT_COUNT ( 7 ),
+		HID_REPORT_ID    ( 0xa8 )
+		HID_USAGE        ( 0xff ),
+		HID_FEATURE      ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ),
+		HID_REPORT_COUNT ( 127 ),
+		HID_REPORT_ID    ( 0xaa )
+		HID_USAGE        ( 0xff ),
+		HID_FEATURE      ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ),
+		HID_REPORT_COUNT_N ( 1024+127, 2 ),
+		HID_REPORT_ID    ( 0xab )
+		HID_USAGE        ( 0xff ),
+		HID_FEATURE      ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ),
+		HID_REPORT_COUNT_N ( 2048+127, 2 ),
+		HID_REPORT_ID    ( 0xac )
+		HID_USAGE        ( 0xff ),
+		HID_FEATURE      ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ),
+		HID_REPORT_COUNT_N ( 3072+127, 2 ),
+		HID_REPORT_ID    ( 0xad )
+		HID_USAGE        ( 0xff ),
+		HID_FEATURE      ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ),
+		HID_REPORT_COUNT_N ( 4095, 2 ), // Maximum allowed size in windows and macos
+		HID_REPORT_ID    ( 0xae )
+		HID_USAGE        ( 0xff ),
+		HID_FEATURE      ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ),
+		HID_REPORT_COUNT_N ( 5120+127, 2 ),
+		HID_REPORT_ID    ( 0xaf )
+		HID_USAGE        ( 0xff ),
+		HID_FEATURE      ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ),
+		HID_REPORT_COUNT_N ( 6144+127, 2 ),
+		HID_REPORT_ID    ( 0xb0 )
+		HID_USAGE        ( 0xff ),
+		HID_FEATURE      ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ),
+	HID_COLLECTION_END
+};
+// clang-format on
+
 /* Configuration Descriptor Set */
 static const uint8_t config_descriptor[] = {
 	// Config
 	0x09, // bLength
 	0x02, // bDescriptorType (Configuration)
-	0x2C,
-	0x00, // wTotalLength 67 TODO: Fix
-	0x02, // bNumInterfaces 2
+	0x22,
+	0x00, // wTotalLength 67
+	0x01, // bNumInterfaces
 	0x01, // bConfigurationValue
 	0x00, // iConfiguration (String Index)
 	0x80, // bmAttributes
@@ -60,50 +104,30 @@ static const uint8_t config_descriptor[] = {
 	0x00, // bInterfaceNumber - 0
 	0x00, // bAlternateSetting
 	0x01, // bNumEndpoints - 1
-	0x02, // bInterfaceClass - CDC
-	0x02, // bInterfaceSubClass - Abstract Control Model (Table 4 in CDC120.pdf)
-	0x01, // bInterfaceProtocol - AT Commands: V.250 etc (Table 5)
+	0x03, // bInterfaceClass - HID
+	0x00, // bInterfaceSubClass
+	0xFF, // bInterfaceProtocol
 	0x00, // iInterface (String Index)
 
-	// Setting up CDC interface (Table 18)
-	0x05, // bLength
-	0x24, // bDescriptorType - CS_INTERFACE (Table 12)
-	0x00, // bDescriptorSubType - Header Functional Descriptor (Table 13)
+	// HID Descriptor
+	0x09, // bLength
+	0x21, // bDescriptorType
 	0x10,
-	0x01, // bcdCDC - USB version - USB1.1
-	// Call Management Functional Descriptor
-	0x05, // bLength
-	0x24, // bDescriptorType - CS_INTERFACE
-	0x01, // bDescriptorSubType - Call Management Functional Descriptor (Table 13)
-	0x00, // bmCapabilities: (Table 3 in PSTN120.pdf)
-	// Bit 0 — Device handles call management itself:
-	//  1 = device handles call management (e.g. call setup, termination, etc.)
-	//  0 = host handles it
-	// Bit 1 — Device can send/receive call management information over a Data Class interface:
-	//  1 = can use the Data Class interface for call management
-	//  0 = must use the Communication Class interface
-	0x01, // bDataInterface - Indicates that multiplexed commands are handled via data interface 01h (same value as
-	      // used in the UNION Functional Descriptor)
-	// Abstract Control Management Functional Descriptor
-	0x04, // bLength
-	0x24, // bDescriptorType - CS_INTERFACE
-	0x02, // bDescriptorSubType - Abstract Control Management Functional Descriptor (Table 13)
-	0x02, // bmCapabilities - Device supports the request combination of Set_Line_Coding, Set_Control_Line_State,
-	      // Get_Line_Coding, and the notification Serial_State (Table 4 in PSTN120.pdf)
-	// Union Descriptor Functional Descriptor
-	0x05, // bLength
-	0x24, // bDescriptorType - CS_INTERFACE
-	0x06, // bDescriptorSubType - Union Descriptor Functional Descriptor (Table 13)
-	0x00, // bControlInterface (Interface number of the control (Communications Class) interface)
-	0x01, // bSubordinateInterface0 (Interface number of the subordinate (Data Class) interface)
-	// Setting up EP1 for CDC config interface
+	0x01, // bcdHID (1.1)
+	0x00, // bCountryCode
+	0x01, // xbNumDescriptors
+	0x22, // bDescriptorType
+	sizeof(special_hid_desc),
+	0x00,
+
+	// EP1 descriptor
 	0x07, // bLength
-	0x05, // bDescriptorType (Endpoint)
-	0x81, // bEndpointAddress (IN/D2H)
-	0x03, // bmAttributes (Interrupt)
-	0x40,
-	0x00, // wMaxPacketSize 64
-	0x01, // bInterval 1 (unit depends on device speed)
+	0x05, // bDescriptorType
+	0x81, // bEndpointAddress -> EP1 OUT
+	0x03, // bmAttributes -> interrupt
+	0x08,
+	0x00, // wMaxPacketSize TODO: Make this bigger?
+	0xff, // bInterval
 };
 
 struct usb_string_descriptor_struct {
