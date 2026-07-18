@@ -12,10 +12,10 @@
 #define TOUCH_L0 PA7
 #define TOUCH_L1 PA5
 
-#define ENDPOINTS 3
-
 #define DATA_SIZE 6144
 #define SCRATCHPAD_SIZE DATA_SIZE + 128
+
+#define ENDPOINTS 2
 
 __attribute__((section(".scratchpad"))) uint8_t scratchpad[SCRATCHPAD_SIZE];
 __attribute__((section(".runwordpad"))) volatile int32_t runwordpad;
@@ -23,7 +23,6 @@ __attribute__((section(".boot_address"))) volatile uint32_t boot_usercode_addres
 
 #define min(a, b) ((a < b) ? a : b)
 
-#define USB_DEBUG
 #ifdef USB_DEBUG
 #include <string.h>
 #define USB_DEBUG_PRINTF(...) printf(__VA_ARGS__)
@@ -50,21 +49,33 @@ int main() {
 	// Setup PLL
 	SystemInit();
 	funGpioInitAll();
-	printf("\033[2JHello world!\n");
+	// printf("\033[2JHello world!\n");
 	runwordpad = 0;
 
-	// Setup LED
-	GPIOA->CFGHR &= ~(0xf << (4 * 7));
-	GPIOA->CFGHR |= ((GPIO_Speed_10MHz | GPIO_CNF_OUT_PP) << (4 * 7));
-	GPIOA->BSHR = (1 << 15);
-	// End debug
+	/*
+	    // Setup LED
+	    GPIOA->CFGHR &= ~(0xf << (4 * 7));
+	    GPIOA->CFGHR |= ((GPIO_Speed_10MHz | GPIO_CNF_OUT_PP) << (4 * 7));
+	    GPIOA->BSHR = (1 << 15);
+	    // End debug
+	*/
+
+	// A11, A12 on CH32V203C8T6
+	// A13, A14 on CH32V203F8U6
+    // But on F8U6 we must stop SWD
 
 	// Initialize ports
 	GPIOA->CFGHR &= ~((0xf << (4 * 3)) | (0xf << (4 * 4)));
 	GPIOA->CFGHR |= (GPIO_Speed_2MHz | GPIO_CNF_OUT_PP) << (4 * 3) | (GPIO_Speed_2MHz | GPIO_CNF_OUT_PP) << (4 * 4);
 
-	// Set to pull-down
+	// Set to pull-down to avoid mis-detection
 	GPIOA->BSHR = (1 << (16 + 11)) | (1 << (16 + 12));
+
+#if defined(CH32V203F8)
+    // Sometimes USB shares pins w/ SWD
+	Delay_Ms( 200 );
+    AFIO->PCFR1 = (AFIO->PCFR1 & ~AFIO_PCFR1_SWJ_CFG) | AFIO_PCFR1_SWJ_CFG_DISABLE;
+#endif
 
 	// 42MHz clock
 	RCC->CFGR0 = (RCC->CFGR0 & ~RCC_USBPRE) | RCC_USBPRE_DIV3;
@@ -96,19 +107,19 @@ int main() {
 	USBD->ISTR = 0;
 	NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
 
-	GPIOA->BSHR = (1 << 31);
+	// GPIOA->BSHR = (1 << 31);
 
 	// Process loop
-	int32_t localpad = (int32_t)(SysTick->CNT);
+	int32_t localpad = 0;
 	while (1) {
 		if (localpad > 0) {
 			if (--localpad == 0) {
 				typedef void (*setype)(uint32_t*, volatile int32_t*);
 				setype scratchexec = (setype)(scratchpad + 4);
 
-                printf("Exec: %d %ld\n", scratchpad[0], runwordpad);
+				// USB_DEBUG_PRINTF("Exec: %d %ld\n", scratchpad[0], runwordpad);
 				scratchexec((uint32_t*)&scratchpad[0], &runwordpad);
-                printf("Xxec: %d %ld\n", scratchpad[0], runwordpad);
+				// USB_DEBUG_PRINTF("Xxec: %d %ld\n", scratchpad[0], runwordpad);
 			}
 		}
 
@@ -223,9 +234,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 						// Non-standard reqs
 						switch (request) {
 							case HID_SET_REPORT:
-								// Send code to execute?
-								// USB_DEBUG_PRINTF("HID SET REPORT\n");
-
 								rx_pending = min(length, SCRATCHPAD_SIZE);
 								rx_buf = scratchpad;
 								runwordpad = 1;
@@ -234,7 +242,8 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 									      USBD_EPR_STAT_RX_VALID);
 								break;
 							case HID_GET_REPORT:
-								USB_DEBUG_PRINTF("HIDG\n");
+								tx_pending = min(length, SCRATCHPAD_SIZE);
+								tx_buf = scratchpad;
 								break;
 							case HID_SET_IDLE:
 								// Ignroe idle requests
@@ -270,7 +279,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 								if (*last4 == 0x1234abcd) {
 									*last4 = 0;
 									runwordpad = 100;
-                                    rx_buf = 0;
+									rx_buf = 0;
 								}
 							}
 						}
