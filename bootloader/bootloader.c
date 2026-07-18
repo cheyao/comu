@@ -11,7 +11,7 @@
 
 #define DATA_SIZE 6144
 #define SCRATCHPAD_SIZE DATA_SIZE + 128
-#define RUN_ADDRESS 0x800
+#define BOOT_ADDRESS 0x1000
 // TODO: RUN ADDR
 
 // #define LED_L PA4
@@ -65,6 +65,8 @@ int main() {
 
 	// Clear screen
 	USB_DEBUG_PRINTF("\033[2JHello world!\n");
+	funPinMode(LED_L, GPIO_CFGLR_OUT_10Mhz_PP);
+	BOOT_LED(1);
 
 	// Initialize ports
 	GPIOA->CFGHR &= ~((0xf << (4 * 3)) | (0xf << (4 * 4)));
@@ -126,7 +128,7 @@ int main() {
 
 				// Boot to user program at 0x4000
 				typedef void (*setype)(void);
-				setype usercode = (setype)(RUN_ADDRESS);
+				setype usercode = (setype)(BOOT_ADDRESS);
 				usercode();
 #else
 				localpad = 0;
@@ -383,15 +385,14 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 			USBD->EPR[i] = i;
 		}
 
-		// SetEPR_Status(0, USBD_EPR_EP_TYPE_MASK, USBD_EPR_EP_TYPE_CTRL);
-		// SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
-		// SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
+		SetEPR_Status(0, USBD_EPR_EP_TYPE_MASK, USBD_EPR_EP_TYPE_CTRL);
+		SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
+		SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
 
 		// This saved 4 bytes, equal to code above
-		const uint16_t to_toggle = (USBD->EPR[0] & (USBD_EPR_STAT_RX_MASK | USBD_EPR_STAT_TX_MASK)) ^
-					      (USBD_EPR_STAT_RX_VALID | USBD_EPR_STAT_TX_NAK);
-		USBD->EPR[0] = 0b1'0'00'0'00'0'1'0'00'0000 | USBD_EPR_EP_TYPE_CTRL | to_toggle;
-		
+		//const uint16_t to_toggle = (USBD->EPR[0] & (USBD_EPR_STAT_RX_MASK | USBD_EPR_STAT_TX_MASK)) ^
+		//			   (USBD_EPR_STAT_RX_VALID | USBD_EPR_STAT_TX_NAK);
+		//USBD->EPR[0] = 0b1'0'00'0'00'0'1'0'00'0000 | USBD_EPR_EP_TYPE_CTRL | to_toggle;
 
 		// We already cleared all write-once bits so EP_KIND is 0
 

@@ -1,11 +1,10 @@
 ENTRY( InterruptVector )
-
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 64K
+  FLASH (rx) : ORIGIN = 0x00001000, LENGTH = 62K
+  EXT (rx) : ORIGIN = 0x08010000, LENGTH = 160K
   RAM (xrw) : ORIGIN = 0x20000000, LENGTH = 20K
 }
-
 SECTIONS
 {
   .init :
@@ -16,7 +15,6 @@ SECTIONS
    . = ALIGN(4);
    _einit = .;
   } >FLASH AT>FLASH
-
   .text :
   {
    . = ALIGN(4);
@@ -27,7 +25,6 @@ SECTIONS
    *(.gnu.linkonce.t.*)
    . = ALIGN(4);
   } >FLASH AT>FLASH
-
   .fini :
   {
    KEEP(*(SORT_NONE(.fini)))
@@ -35,14 +32,12 @@ SECTIONS
   } >FLASH AT>FLASH
   PROVIDE( _etext = . );
   PROVIDE( _eitcm = . );
-
   .preinit_array :
   {
    PROVIDE_HIDDEN (__preinit_array_start = .);
    KEEP (*(.preinit_array))
    PROVIDE_HIDDEN (__preinit_array_end = .);
   } >FLASH AT>FLASH
-
   .init_array :
   {
    PROVIDE_HIDDEN (__init_array_start = .);
@@ -50,7 +45,6 @@ SECTIONS
    KEEP (*(.init_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .ctors))
    PROVIDE_HIDDEN (__init_array_end = .);
   } >FLASH AT>FLASH
-
   .fini_array :
   {
    PROVIDE_HIDDEN (__fini_array_start = .);
@@ -58,7 +52,6 @@ SECTIONS
    KEEP (*(.fini_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .dtors))
    PROVIDE_HIDDEN (__fini_array_end = .);
   } >FLASH AT>FLASH
-
   .ctors :
   {
    KEEP (*crtbegin.o(.ctors))
@@ -67,7 +60,6 @@ SECTIONS
    KEEP (*(SORT(.ctors.*)))
    KEEP (*(.ctors))
   } >FLASH AT>FLASH
-
   .dtors :
   {
    KEEP (*crtbegin.o(.dtors))
@@ -76,19 +68,16 @@ SECTIONS
    KEEP (*(SORT(.dtors.*)))
    KEEP (*(.dtors))
   } >FLASH AT>FLASH
-
   .dalign :
   {
    . = ALIGN(4);
    PROVIDE(_data_vma = .);
   } >RAM AT>FLASH
-
   .dlalign :
   {
    . = ALIGN(4);
    PROVIDE(_data_lma = .);
   } >FLASH AT>FLASH
-
   .data :
   {
    . = ALIGN(4);
@@ -109,7 +98,6 @@ SECTIONS
    . = ALIGN(4);
    PROVIDE( _edata = .);
   } >RAM AT>FLASH
-
   .bss :
   {
    . = ALIGN(4);
@@ -125,17 +113,15 @@ SECTIONS
   PROVIDE( _end = _ebss);
   PROVIDE( end = . );
   PROVIDE( _eusrstack = ORIGIN(RAM) + LENGTH(RAM));
-
-  .scratchpad (NOLOAD) :
+  .storage :
   {
    . = ALIGN(4);
-   KEEP(*(.boot_address*))
-   *(.scratchpad)
+   *(.storage)
+   *(.storage.*)
+   *(.external)
+   *(.external.*)
    . = ALIGN(4);
-   *(.runwordpad*)
-   . = ALIGN(4);
-  } >RAM
-
+  } >EXT AT>EXT
   /DISCARD/ : {
    *(.note .note.*)
    *(.eh_frame .eh_frame.*)
