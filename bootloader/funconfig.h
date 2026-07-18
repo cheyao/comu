@@ -3,12 +3,13 @@
 
 #define FUNCONF_USE_DEBUGPRINTF 0
 #define FUNCONF_USE_UARTPRINTF  0
-#define FUNCONF_NULL_PRINTF 1
+#define FUNCONF_NULL_PRINTF 0
 #define FUNCONF_UART_PRINTF_BAUD 115200
 #define FUNCONF_DEBUG_HARDFAULT 0
+#define FUNCONF_USE_CLK_SEC	0
 
-#define FUNCONF_USE_HSI             1
-#define FUNCONF_USE_HSE             0
+#define FUNCONF_USE_HSI             0
+#define FUNCONF_USE_HSE             1
 
 #endif
 

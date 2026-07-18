@@ -4,22 +4,33 @@
 
 #include <stdio.h>
 
-#define LED_L PA4
+// TODO: Auto-reboot into flash after write
+#define DISABLE_BOOTLOAD 0
+#define BOOTLOADER_LED_POLARITY 1
+#define BOOTLOADER_TIMEOUT_MS 5000 // If this is zero, we never run the code directly
+
+#define DATA_SIZE 6144
+#define SCRATCHPAD_SIZE DATA_SIZE + 128
+#define RUN_ADDRESS 0x800
+// TODO: RUN ADDR
+
+// #define LED_L PA4
+#define LED_L PA15
 #define LED_R PB11
 
+// TODO: Touch buttons
 #define TOUCH_R1 PA9
 #define TOUCH_R0 PA8
 #define TOUCH_L0 PA7
 #define TOUCH_L1 PA5
 
-#define DATA_SIZE 6144
-#define SCRATCHPAD_SIZE DATA_SIZE + 128
+#define BOOT_LED(n) funDigitalWrite(LED_L, n)
+#define BOOTLOADER_TIMEOUT_BASE 4294967295 - Ticks_from_Ms(BOOTLOADER_TIMEOUT_MS)
 
 #define ENDPOINTS 2
 
 __attribute__((section(".scratchpad"))) uint8_t scratchpad[SCRATCHPAD_SIZE];
 __attribute__((section(".runwordpad"))) volatile int32_t runwordpad;
-__attribute__((section(".boot_address"))) volatile uint32_t boot_usercode_address;
 
 #define min(a, b) ((a < b) ? a : b)
 
@@ -48,21 +59,12 @@ static inline void SetEPR_Status(const int ep, const uint16_t mask, const uint16
 int main() {
 	// Setup PLL
 	SystemInit();
-	funGpioInitAll();
-	// printf("\033[2JHello world!\n");
 	runwordpad = 0;
+	SysTick->CNT = BOOTLOADER_TIMEOUT_BASE;
+	funGpioInitAll();
 
-	/*
-	    // Setup LED
-	    GPIOA->CFGHR &= ~(0xf << (4 * 7));
-	    GPIOA->CFGHR |= ((GPIO_Speed_10MHz | GPIO_CNF_OUT_PP) << (4 * 7));
-	    GPIOA->BSHR = (1 << 15);
-	    // End debug
-	*/
-
-	// A11, A12 on CH32V203C8T6
-	// A13, A14 on CH32V203F8U6
-    // But on F8U6 we must stop SWD
+	// Clear screen
+	USB_DEBUG_PRINTF("\033[2JHello world!\n");
 
 	// Initialize ports
 	GPIOA->CFGHR &= ~((0xf << (4 * 3)) | (0xf << (4 * 4)));
@@ -72,9 +74,9 @@ int main() {
 	GPIOA->BSHR = (1 << (16 + 11)) | (1 << (16 + 12));
 
 #if defined(CH32V203F8)
-    // Sometimes USB shares pins w/ SWD
-	Delay_Ms( 200 );
-    AFIO->PCFR1 = (AFIO->PCFR1 & ~AFIO_PCFR1_SWJ_CFG) | AFIO_PCFR1_SWJ_CFG_DISABLE;
+	// Sometimes USB shares pins w/ SWD
+	Delay_Ms(250);
+	AFIO->PCFR1 = (AFIO->PCFR1 & ~AFIO_PCFR1_SWJ_CFG) | AFIO_PCFR1_SWJ_CFG_DISABLE;
 #endif
 
 	// 42MHz clock
@@ -110,16 +112,34 @@ int main() {
 	// GPIOA->BSHR = (1 << 31);
 
 	// Process loop
-	int32_t localpad = 0;
+	int32_t localpad = (int32_t)(SysTick->CNT);
 	while (1) {
+#if defined(BOOTLOADER_TIMEOUT_MS) && BOOTLOADER_TIMEOUT_MS
+		if (localpad < 0) {
+			localpad = (int32_t)(SysTick->CNT);
+			if (localpad >= 0) {
+#if !defined(DISABLE_BOOTLOAD) || !DISABLE_BOOTLOAD
+				BOOT_LED(0);
+
+				// Suspend USB interrupts etc.
+				USBD->CNTR = USBD_FRES;
+
+				// Boot to user program at 0x4000
+				typedef void (*setype)(void);
+				setype usercode = (setype)(RUN_ADDRESS);
+				usercode();
+#else
+				localpad = 0;
+#endif
+			}
+		}
+#endif
+
 		if (localpad > 0) {
 			if (--localpad == 0) {
 				typedef void (*setype)(uint32_t*, volatile int32_t*);
 				setype scratchexec = (setype)(scratchpad + 4);
-
-				// USB_DEBUG_PRINTF("Exec: %d %ld\n", scratchpad[0], runwordpad);
 				scratchexec((uint32_t*)&scratchpad[0], &runwordpad);
-				// USB_DEBUG_PRINTF("Xxec: %d %ld\n", scratchpad[0], runwordpad);
 			}
 		}
 
@@ -133,13 +153,17 @@ int main() {
 
 void USB_LP_CAN1_RX0_IRQHandler(void) __attribute__((interrupt));
 void USB_LP_CAN1_RX0_IRQHandler(void) {
-	// Small macro to help reduce size
-	static const uint8_t zeros[] = {0, 0};
+	static const uint8_t zeros[] = {0, 0}; // Small macro to help reduce size
+
+	// tx_buf and tx_pending gets executed
+	// Using this to avoid code duplication
+	// Saves some space
 	static const uint8_t* tx_buf = NULL;
 	static uint16_t tx_pending = 0;
 	static uint8_t* rx_buf = NULL;
 	static uint16_t rx_pending = 0;
 	static uint8_t new_addr = 0;
+	// Not 100% needed but I'd rather stay safe and define some usb commands
 	static uint8_t usb_config = 0;
 
 	const uint32_t istr = USBD->ISTR;
@@ -151,7 +175,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 
 #ifdef USB_DEBUG
 		if (epr & USBD_CTR_RX && epr & USBD_CTR_TX) {
-			USB_DEBUG_PRINTF("UB! Both RX & TX!");
+			USB_DEBUG_PRINTF("UB! Both RX & TX!\n");
 		}
 #endif
 
@@ -160,15 +184,13 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 			if (ep == 0) {
 				// Setup packet
 				if (epr & USBD_SETUP) {
-					// Memory in USBD is stored in ranks of 16 bits (even though they can store 32
-					// bits)???
+					// Memory in USBD is stored in ranks of 16 bits (even though they can store
+					// 32 bits)
+					// What a weird design
 					const uint8_t request_type = USBD_EP[0][0] & 0xFF;
 					const uint8_t request = USBD_EP[0][0] >> 8;
 					const uint16_t value = USBD_EP[0][1];
-					// const uint16_t index = USBD_EP[0][2]; (Unused for the moment)
 					const uint16_t length = USBD_EP[0][3];
-
-					// USB_DEBUG_PRINTF("EP0 SETUP: %d %d %d\n", request, value, length);
 
 					// Request 0b00100001 0x0A = SET IDLE, can be ignored
 					if ((request_type & USBD_REQ_TYP_MASK) == USBD_REQ_TYP_STANDARD) {
@@ -197,7 +219,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 									tx_buf = special_hid_desc;
 									tx_pending = sizeof(special_hid_desc);
 								} else if (type == USBD_STRING_DESCRIPTOR) {
-									// TODO: Language ID with index?
 									tx_buf = usb_string_descriptors[value & 0xFF];
 									tx_pending = tx_buf[0];
 
@@ -307,7 +328,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 		// - TX part shall start next transaction if we need to
 		// TX detects if the operation should be continued by checking
 		// if the tx_buf is null
-		// TODO: Other EPs
 		if (ep == 0 && (epr & (USBD_CTR_RX | USBD_CTR_TX))) {
 			if (tx_pending == 0) {
 				tx_buf = NULL;
@@ -343,7 +363,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 					new_addr = 0;
 				}
 			} else {
-				// TODO: Other EPs
 				USB_DEBUG_PRINTF("EPn TX\n");
 			}
 
@@ -364,21 +383,17 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 			USBD->EPR[i] = i;
 		}
 
-		// TODO: Write directly to save bytes?
-		SetEPR_Status(0, USBD_EPR_EP_TYPE_MASK, USBD_EPR_EP_TYPE_CTRL);
-		SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
-		SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
+		// SetEPR_Status(0, USBD_EPR_EP_TYPE_MASK, USBD_EPR_EP_TYPE_CTRL);
+		// SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
+		// SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
 
-		/* This saved 4 bytes, but not using to conserve readability
-		 * const uint16_t to_toggle = (USBD->EPR[0] & (USBD_EPR_STAT_RX_MASK | USBD_EPR_STAT_TX_MASK)) ^
-		 * 			      (USBD_EPR_STAT_RX_VALID | USBD_EPR_STAT_TX_NAK);
-		 * USBD->EPR[0] = 0b1'0'00'0'00'0'1'0'00'0000 | USBD_EPR_EP_TYPE_CTRL | to_toggle;
-		 */
+		// This saved 4 bytes, equal to code above
+		const uint16_t to_toggle = (USBD->EPR[0] & (USBD_EPR_STAT_RX_MASK | USBD_EPR_STAT_TX_MASK)) ^
+					      (USBD_EPR_STAT_RX_VALID | USBD_EPR_STAT_TX_NAK);
+		USBD->EPR[0] = 0b1'0'00'0'00'0'1'0'00'0000 | USBD_EPR_EP_TYPE_CTRL | to_toggle;
+		
 
 		// We already cleared all write-once bits so EP_KIND is 0
-		// Maybe we need to toggle DTOG here
-
-		// TODO: Other EPs
 
 		// Enable USB function
 		USBD->DADDR = USBD_EF;

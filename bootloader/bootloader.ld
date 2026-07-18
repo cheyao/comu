@@ -2,8 +2,7 @@ ENTRY( InterruptVector )
 
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 64K
-  EXT (rx) : ORIGIN = 0x08010000, LENGTH = 160K
+  FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 28K
   RAM (xrw) : ORIGIN = 0x20000000, LENGTH = 20K
 }
 
@@ -126,16 +125,6 @@ SECTIONS
   PROVIDE( _end = _ebss);
   PROVIDE( end = . );
   PROVIDE( _eusrstack = ORIGIN(RAM) + LENGTH(RAM));
-
-  .storage :
-  {
-   . = ALIGN(4);
-   *(.storage)
-   *(.storage.*)
-   *(.external)
-   *(.external.*)
-   . = ALIGN(4);
-  } >EXT AT>EXT
 
   .scratchpad (NOLOAD) :
   {
