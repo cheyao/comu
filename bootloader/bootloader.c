@@ -4,7 +4,6 @@
 
 #include <stdio.h>
 
-// TODO: Auto-reboot into flash after write
 #define DISABLE_BOOTLOAD 0
 #define BOOTLOADER_LED_POLARITY 1
 #define BOOTLOADER_TIMEOUT_MS 5000 // If this is zero, we never run the code directly
@@ -12,7 +11,6 @@
 #define DATA_SIZE 6144
 #define SCRATCHPAD_SIZE (DATA_SIZE + 128)
 #define BOOT_ADDRESS 0x800
-// TODO: RUN ADDR
 
 // #define LED_L PA4
 #define LED_L PA15
@@ -165,7 +163,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 	static uint8_t new_addr = 0;
 
 	// We only have 1 config - we can ignore this
-    // Saves 42 bytes
+	// Saves 42 bytes
 	// static uint8_t usb_config = 0;
 
 	const uint32_t istr = USBD->ISTR;
