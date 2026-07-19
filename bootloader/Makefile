@@ -19,4 +19,5 @@ jumppad.bin: jumppad.elf
 
 flash : cv_flash
 clean : cv_clean
+	rm jumppad.elf jumppad.bin
 

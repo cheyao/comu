@@ -10,8 +10,8 @@
 #define BOOTLOADER_TIMEOUT_MS 5000 // If this is zero, we never run the code directly
 
 #define DATA_SIZE 6144
-#define SCRATCHPAD_SIZE DATA_SIZE + 128
-#define BOOT_ADDRESS 0x1000
+#define SCRATCHPAD_SIZE (DATA_SIZE + 128)
+#define BOOT_ADDRESS 0x800
 // TODO: RUN ADDR
 
 // #define LED_L PA4
@@ -24,13 +24,13 @@
 #define TOUCH_L0 PA7
 #define TOUCH_L1 PA5
 
-#define BOOT_LED(n) funDigitalWrite(LED_L, n)
-#define BOOTLOADER_TIMEOUT_BASE 4294967295 - Ticks_from_Ms(BOOTLOADER_TIMEOUT_MS)
+#define BOOTLOADER_TIMEOUT_BASE (4294967295 - Ticks_from_Ms(BOOTLOADER_TIMEOUT_MS))
 
 #define ENDPOINTS 2
 
 __attribute__((section(".scratchpad"))) uint8_t scratchpad[SCRATCHPAD_SIZE];
 __attribute__((section(".runwordpad"))) volatile int32_t runwordpad;
+__attribute__((section(".boot_address"))) volatile uint32_t boot_usercode_address;
 
 #define min(a, b) ((a < b) ? a : b)
 
@@ -56,17 +56,26 @@ static inline void SetEPR_Status(const int ep, const uint16_t mask, const uint16
 	USBD->EPR[ep] = write_val;
 }
 
+void boot_usercode() {
+	// Suspend USB interrupts etc.
+	NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
+	USBD->CNTR = USBD_FRES;
+
+	typedef void (*setype)(void);
+	setype usercode = (setype)(BOOT_ADDRESS);
+	usercode();
+}
+
 int main() {
 	// Setup PLL
 	SystemInit();
 	runwordpad = 0;
+	boot_usercode_address = (uint32_t)boot_usercode;
 	SysTick->CNT = BOOTLOADER_TIMEOUT_BASE;
 	funGpioInitAll();
 
 	// Clear screen
 	USB_DEBUG_PRINTF("\033[2JHello world!\n");
-	funPinMode(LED_L, GPIO_CFGLR_OUT_10Mhz_PP);
-	BOOT_LED(1);
 
 	// Initialize ports
 	GPIOA->CFGHR &= ~((0xf << (4 * 3)) | (0xf << (4 * 4)));
@@ -75,17 +84,16 @@ int main() {
 	// Set to pull-down to avoid mis-detection
 	GPIOA->BSHR = (1 << (16 + 11)) | (1 << (16 + 12));
 
-#if defined(CH32V203F8)
-	// Sometimes USB shares pins w/ SWD
-	Delay_Ms(250);
-	AFIO->PCFR1 = (AFIO->PCFR1 & ~AFIO_PCFR1_SWJ_CFG) | AFIO_PCFR1_SWJ_CFG_DISABLE;
-#endif
-
 	// 42MHz clock
 	RCC->CFGR0 = (RCC->CFGR0 & ~RCC_USBPRE) | RCC_USBPRE_DIV3;
 	RCC->APB2PCENR |= RCC_AFIOEN | RCC_IOPAEN;
 	RCC->AHBPCENR = RCC_AHBPeriph_SRAM;
 	RCC->APB1PCENR |= RCC_USBEN;
+
+#if defined(CH32V203F8)
+	// Sometimes USB shares pins w/ SWD
+	AFIO->PCFR1 |= AFIO_PCFR1_SWJ_CFG_DISABLE;
+#endif
 
 	USBD->CNTR = USBD_FRES; // Suspend & disable all interrupts
 	USBD->CNTR = 0;
@@ -111,8 +119,6 @@ int main() {
 	USBD->ISTR = 0;
 	NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
 
-	// GPIOA->BSHR = (1 << 31);
-
 	// Process loop
 	int32_t localpad = (int32_t)(SysTick->CNT);
 	while (1) {
@@ -121,15 +127,7 @@ int main() {
 			localpad = (int32_t)(SysTick->CNT);
 			if (localpad >= 0) {
 #if !defined(DISABLE_BOOTLOAD) || !DISABLE_BOOTLOAD
-				BOOT_LED(0);
-
-				// Suspend USB interrupts etc.
-				USBD->CNTR = USBD_FRES;
-
-				// Boot to user program at 0x4000
-				typedef void (*setype)(void);
-				setype usercode = (setype)(BOOT_ADDRESS);
-				usercode();
+				boot_usercode();
 #else
 				localpad = 0;
 #endif
@@ -165,8 +163,10 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 	static uint8_t* rx_buf = NULL;
 	static uint16_t rx_pending = 0;
 	static uint8_t new_addr = 0;
-	// Not 100% needed but I'd rather stay safe and define some usb commands
-	static uint8_t usb_config = 0;
+
+	// We only have 1 config - we can ignore this
+    // Saves 42 bytes
+	// static uint8_t usb_config = 0;
 
 	const uint32_t istr = USBD->ISTR;
 
@@ -193,6 +193,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 					const uint8_t request = USBD_EP[0][0] >> 8;
 					const uint16_t value = USBD_EP[0][1];
 					const uint16_t length = USBD_EP[0][3];
+					const uint8_t type = value >> 8;
 
 					// Request 0b00100001 0x0A = SET IDLE, can be ignored
 					if ((request_type & USBD_REQ_TYP_MASK) == USBD_REQ_TYP_STANDARD) {
@@ -208,8 +209,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 								tx_pending = 0xFFFF;
 								break;
 							case USB_GET_DESCRIPTOR:
-								const uint8_t type = value >> 8;
-
 								// 64 bytes TX
 								if (type == USBD_DEVICE_DESCRIPTOR) {
 									tx_buf = device_descriptor;
@@ -224,24 +223,22 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 									tx_buf = usb_string_descriptors[value & 0xFF];
 									tx_pending = tx_buf[0];
 
-#ifdef USB_DEBUG
 									if ((value & 0xFF) >=
-									    sizeof(usb_string_descriptors)) {
-										USB_DEBUG_PRINTF(
-											"ERROR! STR NOTFOUND\n");
+									    sizeof(usb_string_descriptors) / sizeof(usb_string_descriptors[0])) {
+										USB_DEBUG_PRINTF("ERROR! STR NOTFOUND\n");
 									}
-#endif
 								}
 
 								tx_pending = min(tx_pending, length);
 
 								break;
-							case USB_GET_CONFIG:
-								tx_buf = &usb_config;
-								tx_pending = 1;
-								break;
+								// Optional command
+								// case USB_GET_CONFIG:
+								// tx_buf = &usb_config;
+								// tx_pending = 1;
+								// break;
 							case USB_SET_CONFIG:
-								usb_config = value & 0xFF;
+								// usb_config = value & 0xFF;
 								tx_pending = 0xFFFF;
 								break;
 							case USB_GET_INTERFACE:
@@ -261,8 +258,9 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 								rx_buf = scratchpad;
 								runwordpad = 1;
 
-								SetEPR_Status(0, USBD_EPR_STAT_RX_MASK,
-									      USBD_EPR_STAT_RX_VALID);
+								if (tx_pending != 0) {
+									USB_DEBUG_PRINTF("Still TX when RX!\n");
+								}
 								break;
 							case HID_GET_REPORT:
 								tx_pending = min(length, SCRATCHPAD_SIZE);
@@ -287,8 +285,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 							// We got a data packet!
 							// Copy data over to scratchpad
 							for (int i = 0; i < len; ++i) {
-								rx_buf[i] =
-									(USBD_EP[0][i / 2] >> ((i & 1) << 3)) & 0xFF;
+								rx_buf[i] = (USBD_EP[0][i / 2] >> ((i & 1) << 3)) & 0xFF;
 							}
 
 							// ACK packet (1 for each data packet)
@@ -302,7 +299,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 								if (*last4 == 0x1234abcd) {
 									*last4 = 0;
 									runwordpad = 100;
-									rx_buf = 0;
+									rx_buf = NULL;
 								}
 							}
 						}
@@ -385,14 +382,16 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 			USBD->EPR[i] = i;
 		}
 
-		SetEPR_Status(0, USBD_EPR_EP_TYPE_MASK, USBD_EPR_EP_TYPE_CTRL);
-		SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
-		SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
+		// SetEPR_Status(0, USBD_EPR_EP_TYPE_MASK, USBD_EPR_EP_TYPE_CTRL);
+		// SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
+		// SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
 
 		// This saved 4 bytes, equal to code above
-		//const uint16_t to_toggle = (USBD->EPR[0] & (USBD_EPR_STAT_RX_MASK | USBD_EPR_STAT_TX_MASK)) ^
-		//			   (USBD_EPR_STAT_RX_VALID | USBD_EPR_STAT_TX_NAK);
-		//USBD->EPR[0] = 0b1'0'00'0'00'0'1'0'00'0000 | USBD_EPR_EP_TYPE_CTRL | to_toggle;
+		const uint16_t to_toggle = (USBD->EPR[0] & (USBD_EPR_STAT_RX_MASK | USBD_EPR_STAT_TX_MASK)) ^ (USBD_EPR_STAT_RX_VALID | USBD_EPR_STAT_TX_NAK);
+		USBD->EPR[0] = 0b1'0'00'0'00'0'1'0'00'0000 | USBD_EPR_EP_TYPE_CTRL | to_toggle;
+
+		// SetEPR_Status(1, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
+		// SetEPR_Status(1, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_NAK);
 
 		// We already cleared all write-once bits so EP_KIND is 0
 
@@ -400,12 +399,9 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 		USBD->DADDR = USBD_EF;
 	}
 
-	if (istr & USBD_ESOF) {
-		USBD->ISTR = ~USBD_ESOF;
-	}
-
-	if (istr & USBD_SOF) {
-		USBD->ISTR = ~USBD_SOF;
+#ifdef USB_DEBUG
+	if (istr & (USBD_ESOF | USBD_SOF)) {
+		USBD->ISTR = ~(USBD_ESOF | USBD_SOF);
 	}
 
 	if (istr & USBD_ERR) {
@@ -413,4 +409,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 
 		USBD->ISTR = ~USBD_ERR;
 	}
+#else
+	USBD->ISTR = ~(USBD_ESOF | USBD_SOF | USBD_ERR);
+#endif
 }
