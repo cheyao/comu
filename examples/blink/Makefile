@@ -1,4 +1,4 @@
-all : flash
+all : build
 
 TARGET := blink
 TARGET_MCU := CH32V203
