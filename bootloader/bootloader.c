@@ -90,6 +90,7 @@ int main() {
 
 #if defined(CH32V203F8)
 	// Sometimes USB shares pins w/ SWD
+    Delay_Ms(100);
 	AFIO->PCFR1 |= AFIO_PCFR1_SWJ_CFG_DISABLE;
 #endif
 
@@ -380,13 +381,9 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 			USBD->EPR[i] = i;
 		}
 
-		// SetEPR_Status(0, USBD_EPR_EP_TYPE_MASK, USBD_EPR_EP_TYPE_CTRL);
-		// SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
-		// SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
-
-		// This saved 4 bytes, equal to code above
-		const uint16_t to_toggle = (USBD->EPR[0] & (USBD_EPR_STAT_RX_MASK | USBD_EPR_STAT_TX_MASK)) ^ (USBD_EPR_STAT_RX_VALID | USBD_EPR_STAT_TX_NAK);
-		USBD->EPR[0] = 0b1'0'00'0'00'0'1'0'00'0000 | USBD_EPR_EP_TYPE_CTRL | to_toggle;
+		SetEPR_Status(0, USBD_EPR_EP_TYPE_MASK, USBD_EPR_EP_TYPE_CTRL);
+		SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
+		SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
 
 		// SetEPR_Status(1, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
 		// SetEPR_Status(1, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_NAK);
