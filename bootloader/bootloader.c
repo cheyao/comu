@@ -90,7 +90,7 @@ int main() {
 
 #if defined(CH32V203F8)
 	// Sometimes USB shares pins w/ SWD
-    Delay_Ms(100);
+	Delay_Ms(100);
 	AFIO->PCFR1 |= AFIO_PCFR1_SWJ_CFG_DISABLE;
 #endif
 
@@ -326,7 +326,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 		// - TX part shall start next transaction if we need to
 		// TX detects if the operation should be continued by checking
 		// if the tx_buf is null
-		if (ep == 0 && (epr & (USBD_CTR_RX | USBD_CTR_TX))) {
+		if (ep == 0) {
 			if (tx_pending == 0) {
 				tx_buf = NULL;
 				// Enable recieving data
@@ -395,16 +395,10 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 	}
 
 #ifdef USB_DEBUG
-	if (istr & (USBD_ESOF | USBD_SOF)) {
-		USBD->ISTR = ~(USBD_ESOF | USBD_SOF);
-	}
-
 	if (istr & USBD_ERR) {
 		USB_DEBUG_PRINTF("ERROR! USB error\n");
-
-		USBD->ISTR = ~USBD_ERR;
 	}
-#else
-	USBD->ISTR = ~(USBD_ESOF | USBD_SOF | USBD_ERR);
 #endif
+
+	USBD->ISTR = ~(USBD_ESOF | USBD_SOF | USBD_WKUP | USBD_SUSP | USBD_ERR | USBD_PMAOVR);
 }

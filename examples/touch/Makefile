@@ -2,7 +2,7 @@ all : build
 
 # Run make clangd and make clangd_clean for lsp support
 
-TARGET := blink
+TARGET := touch
 TARGET_MCU := CH32V203
 TARGET_MCU_PACKAGE := CH32V203F8
 
