@@ -59,6 +59,9 @@ void boot_usercode() {
 	NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
 	USBD->CNTR = USBD_FRES;
 
+    // Give USB time to fully reset
+	Delay_Us(100);
+
 	typedef void (*setype)(void);
 	setype usercode = (setype)(BOOT_ADDRESS);
 	usercode();

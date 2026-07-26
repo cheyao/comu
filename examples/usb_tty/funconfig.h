@@ -3,6 +3,9 @@
 
 #define FUNCONF_USE_DEBUGPRINTF     0
 #define FUNCONF_USE_USBPRINTF       1
+#define FUNCONF_ENABLE_HPE          0
+#define FUNCONF_SYSTICK_USE_HCLK    1
+
 #define FUNCONF_DEBUG_HARDFAULT     0
 
 #endif

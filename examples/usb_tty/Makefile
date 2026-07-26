@@ -2,7 +2,7 @@ all : flash
 
 # Run make clangd and make clangd_clean for lsp support
 
-TARGET := touch
+TARGET := usb_tty
 TARGET_MCU := CH32V203
 TARGET_MCU_PACKAGE := CH32V203F8
 
@@ -14,3 +14,4 @@ include ../../ch32fun/ch32fun/ch32fun.mk
 
 flash : cv_flash
 clean : cv_clean
+
