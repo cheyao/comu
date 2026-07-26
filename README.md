@@ -16,4 +16,8 @@ Features:
 ![](images/comu.png)
 
 By pluggin in this PCB, you will have a portable bare-metal USB HID device that you can play with :)
+| Item | Cost |
+|--|--|
+| PCB | 130$ |
+| Parts | 70$ |
 
