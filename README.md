@@ -68,6 +68,31 @@ There are tons of examples in the `examples` folder on this repo, and also compa
     - A9 (PB1)
 - GPIOs: PB14, PB15, PA1, PA2, PA3, PA8
 
+### Usage
+
+Dependencies: Make, riscv64-gcc, libusb (Checkout dependency list [here](https://github.com/cnlohr/ch32fun/wiki/Installation))
+
+Clone this respository and pull the submodules:
+
+```
+$ git clone https://github.com/cheyao/comu
+$ cd comu
+$ git submodule update --init --recursive
+```
+
+Go into the examples folder and build an example:
+
+```
+$ cd examples/blink
+$ make
+```
+
+Now, the example should be built. When you insert your Comu into your USB port, it should stay in the bootloader for the first 5 seconds. You can then re-run `make flash` to flash the binary onto the chip!
+
+Now you can make your applications! I recommend starting off by copying an example, as you need to flash to address `flash+0x800` to avoid overwriting the custom bootloader.
+
+If the flashing isn't working, please read through this [wiki](https://github.com/cnlohr/ch32fun/wiki/Installation) for operating system setup, and try re-building minichnlink. (I've submitted a few new patches for the ch32v203 flashing a week ago)
+
 ### Can I get one?
 
 I've put it up on the following sites:
