@@ -2,6 +2,8 @@
 
 A bite-sized CH32V203 board that fits inside your USB port.
 
+Intrested? Sign up to the [newsletter](https://cyao.dev/subscribe.html) for info! I might do a Crowd Supply campaign if there's intrest. (No spam and very infrequent emails I promise)
+
 ![](images/pcb-on-hand.jpg)
 
 Comu is a tiny CH32V203 RISC-V computer that fits inside a USB port. It is user programmable, fitted with a custom bootloader, has four captive touch buttons and two LEDs. The board is supported by [ch32fun](https://github.com/cnlohr/ch32fun), allowing easy and lightweight RISC-V bare-metal development.
