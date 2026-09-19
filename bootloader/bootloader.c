@@ -59,7 +59,7 @@ void boot_usercode() {
 	NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
 	USBD->CNTR = USBD_FRES;
 
-    // Give USB time to fully reset
+	// Give USB time to fully reset
 	Delay_Us(100);
 
 	typedef void (*setype)(void);
@@ -76,7 +76,7 @@ int main() {
 	funGpioInitAll();
 
 	// Clear screen
-	USB_DEBUG_PRINTF("\033[2JHello world!\n");
+	USB_DEBUG_PRINTF("\033[2JStarting bootloader\n");
 
 	// Initialize ports
 	GPIOA->CFGHR &= ~((0xf << (4 * 3)) | (0xf << (4 * 4)));
@@ -93,7 +93,7 @@ int main() {
 
 #if defined(CH32V203F8)
 	// Sometimes USB shares pins w/ SWD
-	Delay_Ms(100);
+	Delay_Ms(200);
 	AFIO->PCFR1 |= AFIO_PCFR1_SWJ_CFG_DISABLE;
 #endif
 
@@ -166,10 +166,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 	static uint16_t rx_pending = 0;
 	static uint8_t new_addr = 0;
 
-	// We only have 1 config - we can ignore this
-	// Saves 42 bytes
-	// static uint8_t usb_config = 0;
-
 	const uint32_t istr = USBD->ISTR;
 
 	// Correct transfer
@@ -234,13 +230,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 								tx_pending = min(tx_pending, length);
 
 								break;
-								// Optional command
-								// case USB_GET_CONFIG:
-								// tx_buf = &usb_config;
-								// tx_pending = 1;
-								// break;
 							case USB_SET_CONFIG:
-								// usb_config = value & 0xFF;
 								tx_pending = 0xFFFF;
 								break;
 							case USB_GET_INTERFACE:
@@ -352,32 +342,22 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 		}
 
 		// Moved here because this flag is needed for above
-		if (istr & USBD_CTR_RX) {
+		if (epr & USBD_CTR_RX) {
 			// Clear RX (Toggle, 1 conserves bit)
 			USBD->EPR[ep] = (USBD->EPR[ep] & (USBD_EA | USBD_EPKIND | USBD_EPTYPE)) | USBD_CTR_TX;
 		}
 
 		if (epr & USBD_CTR_TX) {
-			if (ep == 0) {
-				if (new_addr != 0) {
-					USBD->DADDR = 0x80 | new_addr;
-					new_addr = 0;
-				}
-			} else {
-				USB_DEBUG_PRINTF("EPn TX\n");
+			if (ep == 0 && new_addr != 0) {
+				USBD->DADDR = 0x80 | new_addr;
+				new_addr = 0;
 			}
 
 			// Clear TX (Toggle)
 			USBD->EPR[ep] = (USBD->EPR[ep] & (USBD_EA | USBD_EPKIND | USBD_EPTYPE)) | USBD_CTR_RX;
 		}
-
-		USBD->ISTR = ~USBD_CTR;
-	}
-
-	if (istr & USBD_RESET) {
+	} else if (istr & USBD_RESET) {
 		USB_DEBUG_PRINTF("\033[93mUSB RESET\033[0m\n");
-
-		USBD->ISTR = ~USBD_RESET;
 		USBD->BTABLE = 0;
 
 		for (int i = 0; i < ENDPOINTS; ++i) {
@@ -387,9 +367,6 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 		SetEPR_Status(0, USBD_EPR_EP_TYPE_MASK, USBD_EPR_EP_TYPE_CTRL);
 		SetEPR_Status(0, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_VALID);
 		SetEPR_Status(0, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
-
-		// SetEPR_Status(1, USBD_EPR_STAT_TX_MASK, USBD_EPR_STAT_TX_NAK);
-		// SetEPR_Status(1, USBD_EPR_STAT_RX_MASK, USBD_EPR_STAT_RX_NAK);
 
 		// We already cleared all write-once bits so EP_KIND is 0
 
@@ -403,5 +380,5 @@ void USB_LP_CAN1_RX0_IRQHandler(void) {
 	}
 #endif
 
-	USBD->ISTR = ~(USBD_ESOF | USBD_SOF | USBD_WKUP | USBD_SUSP | USBD_ERR | USBD_PMAOVR);
+	USBD->ISTR = ~(USBD_ESOF | USBD_SOF | USBD_WKUP | USBD_SUSP | USBD_ERR | USBD_PMAOVR | USBD_CTR | USBD_RESET);
 }

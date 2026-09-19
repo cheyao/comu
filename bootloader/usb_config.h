@@ -4,19 +4,13 @@
 #include "ch32fun.h"
 #include "funconfig.h"
 
-#define FUSB_CONFIG_EPS 4 // Include EP0 in this count
-#define FUSB_EP1_MODE 1	  // TX (IN)
-#define FUSB_EP2_MODE -1  // RX (OUT)
-#define FUSB_EP3_MODE 1	  // TX (IN)
-#define FUSB_USER_HANDLERS 1
-
 #include "usb_defines.h"
 
 #define FUSB_USB_VID 0x1209
 #define FUSB_USB_PID 0xb003
 #define FUSB_USB_REV 0x0007
-#define FUSB_STR_MANUFACTURER u"cheyao"
-#define FUSB_STR_PRODUCT u"USB Bootloader"
+#define FUSB_STR_MANUFACTURER u"IE"
+#define FUSB_STR_PRODUCT u"Bootsec"
 #define FUSB_STR_SERIAL u"BOOT"
 
 // https://beyondlogic.org/usbnutshell/usb5.htm#DeviceDescriptors
