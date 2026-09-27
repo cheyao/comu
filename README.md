@@ -8,7 +8,7 @@ Intrested? Sign up to the [newsletter](https://cyao.dev/subscribe.html) for info
 
 Comu is a tiny CH32V203 RISC-V computer that fits inside a USB port. It is user programmable, fitted with a custom bootloader, has four captive touch buttons and two LEDs. The board is supported by [ch32fun](https://github.com/cnlohr/ch32fun), allowing easy and lightweight RISC-V bare-metal development.
 
-The CH32V203 is equipped with 252KB of Flash and 20KB of SRAM, more than enough for most embedded applications. The chip also has a wide array of peripherals, including DMA and a 12bit ADC, allowing for a wide variety of uses. The board also exposes 6 GPIO pins via testpoints, allowing it to be embedded on custom boards for further use.
+The CH32V203 is equipped with 248KB of Flash and 20KB of SRAM, more than enough for most embedded applications. The chip also has a wide array of peripherals, including DMA and a 12bit ADC, allowing for a wide variety of uses. The board also exposes 6 GPIO pins via testpoints, allowing it to be embedded on custom boards for further use.
 
 It can also easily act as a **USB HID device**, allowing portable key injections to avoid repetitive typing. With it 4 captive buttons, you can make it into a sliding volume adjuster, computer sleep trigger, screen capture device and more!
 
@@ -96,12 +96,6 @@ Now you can make your applications! I recommend starting off by copying an examp
 If the flashing isn't working, please read through this [wiki](https://github.com/cnlohr/ch32fun/wiki/Installation) for operating system setup, and try re-building minichnlink. (I've submitted a few new patches for the ch32v203 flashing a week ago)
 
 ### Can I get one?
-
-I've put it up on the following sites:
-
-<a href="https://lectronz.com/products/comu" alt="Buy it on Lectronz"><img src="https://lectronz-images.b-cdn.net/static/badges/buy-it-on-lectronz-medium.png" /></a>
-
-Mostly just labor fees :)
 
 ### Attributions
 
