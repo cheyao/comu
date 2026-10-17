@@ -2,7 +2,7 @@
 
 A bite-sized CH32V203 board that fits inside your USB port.
 
-Intrested? Sign up to the [newsletter](https://cyao.dev/subscribe.html) for info! I might do a Crowd Supply campaign if there's intrest. (No spam and very infrequent emails I promise)
+Intrested? Get one on [Crowd Supply](https://www.crowdsupply.com/dashboard/project/13073/subscribers)!
 
 ![](images/pcb-on-hand.jpg)
 
