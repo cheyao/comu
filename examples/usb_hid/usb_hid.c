@@ -26,7 +26,6 @@ int HandleHidUserGetReportSetup(struct _USBState* ctx, tusb_control_request_t* r
 	// Recieve data?
 	int id = req->wValue & 0xff;
 	if (id == 0xaa) {
-
 		ctx->pCtrlPayloadPtr = scratchpad;
 		if (sizeof(scratchpad) - 1 < lrx) {
 			return sizeof(scratchpad) - 1;

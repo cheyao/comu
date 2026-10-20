@@ -24,7 +24,7 @@
 #define FUSB_USB_REV 0x0007
 #define FUSB_STR_MANUFACTURER u"cheyao"
 #define FUSB_STR_PRODUCT      u"USB HID"
-#define FUSB_STR_SERIAL      u"007"
+#define FUSB_STR_SERIAL       u"007"
 
 // Taken from http://www.usbmadesimple.co.uk/ums_ms_desc_dev.htm
 static const uint8_t device_descriptor[] = {
@@ -64,6 +64,10 @@ static const uint8_t HIDAPIRepDesc[ ] =
 			// For use with testtop
 			HID_REPORT_COUNT   ( 63 ), 
 			HID_REPORT_ID      ( 0xab )
+			HID_USAGE          ( 0x01 ),	
+			HID_FEATURE        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),
+			HID_REPORT_COUNT   ( 255 ), 
+			HID_REPORT_ID      ( 0xaa )
 			HID_USAGE          ( 0x01 ),	
 			HID_FEATURE        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),
 			// for reboot or internal terminal.
