@@ -2,7 +2,7 @@
 
 A bite-sized CH32V203 board that fits inside your USB port.
 
-Intrested? Get one on [Crowd Supply](https://www.crowdsupply.com/dashboard/project/13073/subscribers)!
+Intrested? Get one on [Crowd Supply](https://www.crowdsupply.com/icy-electronics/comu)!
 
 ![](images/pcb-on-hand.jpg)
 
@@ -96,6 +96,8 @@ Now you can make your applications! I recommend starting off by copying an examp
 If the flashing isn't working, please read through this [wiki](https://github.com/cnlohr/ch32fun/wiki/Installation) for operating system setup, and try re-building minichnlink. (I've submitted a few new patches for the ch32v203 flashing a week ago)
 
 ### Can I get one?
+
+They will be shortly availiable on [Crowd Supply](https://www.crowdsupply.com/icy-electronics/comu)!
 
 ### Attributions
 
